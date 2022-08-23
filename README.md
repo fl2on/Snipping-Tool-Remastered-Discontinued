@@ -1,9 +1,9 @@
 
-![Logo](https://cdn.discordapp.com/attachments/689717323543609386/1011465519485964368/Snipping_Tool_Remastered-1.png)
+![Logo](https://cdn.discordapp.com/attachments/689717323543609386/1011468995943202916/1661223392212.png)
 
 
 ## Screenshot 
-![App Screenshot](https://cdn.discordapp.com/attachments/689717323543609386/1011468995943202916/1661223392212.png)
+![App Screenshot](https://cdn.discordapp.com/attachments/689717323543609386/1011466378190012518/Screenshot_2022-08-22_214521.png)
 
 
 
