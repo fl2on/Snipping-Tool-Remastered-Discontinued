@@ -1,4 +1,4 @@
-﻿/*Original repository credits: https://github.com/michaelmob/Hyperdesktop2 by michaelmob
+/*Original repository credits: https://github.com/michaelmob/Hyperdesktop2 by michaelmob
 Based on HyperDesktop 2 as a continuation of the project, with a number of modifications. 
 Fixed bugs and features from the original version.
 The project was continued by (qzxtu) Nova#1735
@@ -31,7 +31,7 @@ namespace Snipping_Tool_Remastered.Class
         public static RawSecurityDescriptor GetProcessSecurityDescriptor(IntPtr processHandle)
         {
             const int DACL_SECURITY_INFORMATION = 0x00000004;
-            byte[] psd = new byte[0];
+            byte[] psd = Array.Empty<byte>();
             uint bufSizeNeeded;
             GetKernelObjectSecurity(processHandle, DACL_SECURITY_INFORMATION, psd, 0, out bufSizeNeeded);
             if (bufSizeNeeded < 0 || bufSizeNeeded > short.MaxValue)
