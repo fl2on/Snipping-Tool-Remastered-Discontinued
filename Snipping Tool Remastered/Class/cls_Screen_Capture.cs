@@ -10,11 +10,11 @@ namespace Snipping_Tool_Remastered
 internal static class Screen_Capture
 {
     [StructLayout(LayoutKind.Sequential)]
-    private struct POINT { public int X; public int Y; }
+    private struct POINT { internal int X; internal int Y; }
     [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+    private struct RECT { internal int Left; internal int Top; internal int Right; internal int Bottom; }
     [StructLayout(LayoutKind.Sequential)]
-    private struct CURSORINFO { public int cbSize; public int flags; public IntPtr hCursor; public POINT ptScreenPos; }
+    private struct CURSORINFO { internal int cbSize; internal int flags; internal IntPtr hCursor; internal POINT ptScreenPos; }
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
