@@ -103,17 +103,17 @@ namespace Snipping_Tool_Remastered
                 bmp = edited;
             }
 
-            // Saving is independent of the optional network upload.
-            this.save_screenshot(bmp);
-            if (cls_Settings.upload_method == "imgur")
+            try
             {
-                try
+                // Saving is independent of the optional network upload.
+                this.save_screenshot(bmp);
+                if (cls_Settings.upload_method == "imgur")
                 {
-                    using (var copy = new Bitmap(bmp))
+                    try
                     {
                         this.group_upload_progress.Text = "Uploading image...";
                         this.progress.Value = 0;
-                        Imgur.UploadResult result = await Imgur.UploadAsync(copy);
+                        Imgur.UploadResult result = await Imgur.UploadAsync(bmp);
                         this.list_image_links.Items.Add(new ListViewItem(new[] { result.Link, result.DeleteHash ?? "" }));
                         this.list_image_links.Items[this.list_image_links.Items.Count - 1].EnsureVisible();
                         if (cls_Settings.copy_links_to_clipboard)
@@ -124,21 +124,21 @@ namespace Snipping_Tool_Remastered
                             Process.Start(result.Link);
                         Global_Func.play_sound("success.wav");
                     }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                    Global_Func.play_sound("error.wav");
-                    if (cls_Settings.balloon_messages)
-                        balloon_tip("Image upload failed.", "Upload error", 2000, ToolTipIcon.Error);
-                }
-                finally
-                {
-                    this.group_upload_progress.Text = "Upload Progress";
-                    this.progress.Value = 0;
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex);
+                        Global_Func.play_sound("error.wav");
+                        if (cls_Settings.balloon_messages)
+                            balloon_tip("Image upload failed.", "Upload error", 2000, ToolTipIcon.Error);
+                    }
+                    finally
+                    {
+                        this.group_upload_progress.Text = "Upload Progress";
+                        this.progress.Value = 0;
+                    }
                 }
             }
-            bmp.Dispose();
+            finally { bmp.Dispose(); }
         }
         #endregion
 
