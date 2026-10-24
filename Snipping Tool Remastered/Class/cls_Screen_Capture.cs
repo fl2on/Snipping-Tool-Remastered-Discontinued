@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Windows.Forms;
 
+namespace Snipping_Tool_Remastered
+{
 internal static class Screen_Capture
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -74,4 +76,5 @@ internal static class Screen_Capture
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to read the foreground window bounds.");
         return region(Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom), cursor, pixel_format);
     }
+}
 }
