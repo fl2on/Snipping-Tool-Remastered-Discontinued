@@ -14,7 +14,19 @@ internal static class Screen_Capture
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { internal int Left; internal int Top; internal int Right; internal int Bottom; }
     [StructLayout(LayoutKind.Sequential)]
-    private struct CURSORINFO { internal int cbSize; internal int flags; internal IntPtr hCursor; internal POINT ptScreenPos; }
+    private struct CURSORINFO
+    {
+        internal int cbSize;
+        internal int flags;
+        private IntPtr hCursor;
+        internal POINT ptScreenPos;
+
+        internal void DrawAt(IntPtr hdc, int x, int y)
+        {
+            if (!DrawIconEx(hdc, x, y, hCursor, 0, 0, 0, IntPtr.Zero, 3))
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -47,8 +59,7 @@ internal static class Screen_Capture
                         IntPtr hdc = graphics.GetHdc();
                         try
                         {
-                            if (!DrawIconEx(hdc, info.ptScreenPos.X - area.X, info.ptScreenPos.Y - area.Y, info.hCursor, 0, 0, 0, IntPtr.Zero, 3))
-                                throw new Win32Exception(Marshal.GetLastWin32Error());
+                            info.DrawAt(hdc, info.ptScreenPos.X - area.X, info.ptScreenPos.Y - area.Y);
                         }
                         finally { graphics.ReleaseHdc(hdc); }
                     }
