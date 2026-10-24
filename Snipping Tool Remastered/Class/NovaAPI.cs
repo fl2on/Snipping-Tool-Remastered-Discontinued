@@ -12,24 +12,12 @@ namespace Snipping_Tool_Remastered.Class
 {
     internal class NovaAPI
     {
-        #region secure webclient
-        public static WebClient SecureWebClient()
-        {
-            // Respect the system proxy settings and enterprise TLS inspection policies.
-            WebClient w = new WebClient(); return w;
-        }
-        #endregion
 
-        #region AntiFiddler
-        public static void AntiFiddler() => HttpWebRequest.DefaultWebProxy = new WebProxy();
-        #endregion
 
         #region force memory clean
         public static void gc()
         {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            GC.Collect();
+            // Let .NET manage garbage collection; frequent forced GCs freeze the UI.
         }
         #endregion
 
