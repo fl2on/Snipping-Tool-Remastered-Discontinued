@@ -12,7 +12,16 @@ namespace Snipping_Tool_Remastered
         {
             // Refresh the complete virtual desktop, including negative monitor origins.
             // The process manifest enables physical-pixel, per-monitor DPI coordinates.
-            bounds = SystemInformation.VirtualScreen;
+            Rectangle automatic = SystemInformation.VirtualScreen;
+            string[] parts = (cls_Settings.screen_res ?? "").Split(',');
+            int x, y, width, height;
+            if (parts.Length == 4 &&
+                int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y) &&
+                int.TryParse(parts[2], out width) && int.TryParse(parts[3], out height) &&
+                width > 0 && height > 0)
+                bounds = new Rectangle(x, y, width, height);
+            else
+                bounds = automatic;
         }
 
         public static String reset()
