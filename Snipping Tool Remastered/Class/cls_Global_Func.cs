@@ -58,7 +58,7 @@ namespace Snipping_Tool_Remastered
 			app_data_folder_create();
 
 			if (run)
-				reg_key.SetValue("Snipping Tool Remastered", cls_Settings.exe_path);
+				reg_key.SetValue("Snipping Tool Remastered", "\\"" + cls_Settings.exe_path + "\\"");
 			else
 				reg_key.DeleteValue("Snipping Tool Remastered", false);
 		}

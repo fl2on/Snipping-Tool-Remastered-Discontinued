@@ -44,7 +44,7 @@ namespace Snipping_Tool_Remastered
             Application.SetCompatibleTextRenderingDefault(false);
             Internals.CRYPT_KEY_STATIC = ((char)('K' ^ Internals.VERSION_MAJOR)).ToString() + ((char)('E' ^ Internals.VERSION_MINOR)).ToString() + ((char)('Y' ^ Internals.VERSION_PATCH)).ToString() + "RdQZaXP5iqzKpLZFaxkN";
             Internals.CRYPT_KEY_DYNAMIC = WindowsIdentity.GetCurrent().Name;
-            ProtectProcess.Protect();
+            // Do not modify the process ACL: Windows defaults are safer and more compatible.
             Application.Run(new Snipping_Tool_Remastered());
         }
     }

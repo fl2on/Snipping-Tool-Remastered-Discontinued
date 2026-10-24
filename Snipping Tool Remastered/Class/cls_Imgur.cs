@@ -25,7 +25,9 @@ namespace Snipping_Tool_Remastered
                 var image = Global_Func.bmp_to_base64(bmp, Global_Func.ext_to_imageformat(cls_Settings.upload_format));
                 data.Add("image", image);
 
-                web_client.Headers.Add("Authorization", "Client-ID " + cls_Settings.imgur_client_id);   
+                if (web_client.IsBusy)
+                    return false;
+                web_client.Headers["Authorization"] = "Client-ID " + cls_Settings.imgur_client_id;   
                 web_client.UploadValuesAsync(
                     new Uri(baseUrl + "image/"),
                     "POST",
@@ -51,7 +53,7 @@ namespace Snipping_Tool_Remastered
                 };
                 web_client.Headers.Add("Authorization", "Client-ID " + cls_Settings.imgur_client_id);
                 web_client.UploadData(
-                    new Uri (baseUrl + "image/" + delete_hash),
+                    new Uri(baseUrl + "image/" + delete_hash),
                     "DELETE",
                     new byte[] { 0x0 }
                 );

@@ -15,9 +15,8 @@ namespace Snipping_Tool_Remastered.Class
         #region secure webclient
         public static WebClient SecureWebClient()
         {
-            AntiFiddler();
-            WebClient w = new WebClient
-            { Proxy = null }; ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12; return w;
+            // Respect the system proxy settings and enterprise TLS inspection policies.
+            WebClient w = new WebClient(); return w;
         }
         #endregion
 

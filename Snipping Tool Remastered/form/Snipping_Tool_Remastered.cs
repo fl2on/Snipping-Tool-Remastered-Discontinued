@@ -25,12 +25,13 @@ namespace Snipping_Tool_Remastered
         Bitmap edit_screenshot(Bitmap bmp)
         {
             if (!cls_Settings.edit_screenshot)
-                return null;
+                return bmp;
 
-            var edit = new frm_Edit(bmp);
-            edit.ShowDialog();
-
-            return edit.Result;
+            using (var edit = new frm_Edit(bmp))
+            {
+                edit.ShowDialog();
+                return edit.Result;
+            }
         }
 
         private void save_screenshot(Bitmap bmp, String name = null)
@@ -67,21 +68,23 @@ namespace Snipping_Tool_Remastered
                     break;
 
                 default:
-                    this.snipper_open = false;
-                    if (snipper_open)
-                        return;
-
-                    this.snipper_open = true;
-                    var rect = frm_Snipper.get_region();
-
-                    if (rect == new Rectangle(0, 0, 0, 0))
-                        return;
-
-                    bmp = Screen_Capture.region(rect);
-                    this.snipper_open = false;
+                    if (snipper_open) return;
+                    snipper_open = true;
+                    try
+                    {
+                        Screen_Bounds.load();
+                        Rectangle rect = frm_Snipper.get_region();
+                        if (rect == Rectangle.Empty) return;
+                        bmp = Screen_Capture.region(rect, cls_Settings.show_cursor);
+                    }
+                    finally { snipper_open = false; }
                     break;
             }
-            this.work_image(bmp, true);
+            if (bmp != null)
+            {
+                using (bmp)
+                    this.work_image(bmp, true);
+            }
         }
 
         private void work_image(Bitmap bmp, Boolean edit = false)
@@ -117,19 +120,7 @@ namespace Snipping_Tool_Remastered
         public Snipping_Tool_Remastered()
         {
             InitializeComponent();
-            try
-            {
-                if (Convert.ToInt32(cls_Settings.Read("Snipping Tool", "build")) < cls_Settings.build)
-                {
-                    File.Delete(cls_Settings.exe_path);
-                    cls_Settings.Write("Snipping Tool", "build", cls_Settings.build.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Couldn't delete old Snipping Tool Remastered executable.");
-                Console.WriteLine(ex.Message);
-            }
+            // Never delete an installed executable based on mutable INI settings.
             Global_Func.app_data_folder_create();
             Global_Func.copy_files();
             if (!File.Exists(cls_Settings.ini_path))
@@ -178,7 +169,7 @@ namespace Snipping_Tool_Remastered
         {
             try
             {
-                Int32 percent = Convert.ToInt32(e.BytesSent / e.TotalBytesToSend) * 100;
+                Int32 percent = e.TotalBytesToSend > 0 ? (int)Math.Max(0, Math.Min(100, e.BytesSent * 100L / e.TotalBytesToSend)) : 0;
                 this.group_upload_progress.Text = String.Format("Upload Progress - {0}% ({1}kb/{2}kb)", percent, e.BytesSent / 1024, e.TotalBytesToSend / 1024);
                 this.progress.Value = percent;
                 NovaAPI.gc();
@@ -194,9 +185,30 @@ namespace Snipping_Tool_Remastered
             this.progress.Value = 0;
             this.label1.Text = Settings.Default.LaunchBrowser;
             this.Refresh();
+            if (e.Cancelled || e.Error != null)
+            {
+                if (cls_Settings.balloon_messages)
+                    balloon_tip("Image upload failed.", "Upload error", 2000, ToolTipIcon.Error);
+                return;
+            }
+            if (e.Cancelled || e.Error != null)
+            {
+                if (cls_Settings.balloon_messages)
+                    balloon_tip("Upload failed.", "Upload error", 2000, ToolTipIcon.Error);
+                return;
+            }
             String response = Encoding.UTF8.GetString(e.Result);
-            String delete_hash = Global_Func.get_text_inbetween(response, "deletehash\":\"", "\",\"link\"").Replace("\\", "").Replace('"',' ').Replace("name","").Replace(" ","").Replace(":","").Replace(",","");
-            String link = Global_Func.get_text_inbetween(response, "link\":\"", "\"}").Replace("\\", "");
+            dynamic responseObject = Newtonsoft.Json.JsonConvert.DeserializeObject(response);
+            if (responseObject == null || responseObject.success != true || responseObject.data == null)
+                return;
+            String delete_hash = (string)responseObject.data.deletehash;
+            String link = (string)responseObject.data.link;
+            Uri parsedLink;
+            if (!Uri.TryCreate(link, UriKind.Absolute, out parsedLink) ||
+                parsedLink.Scheme != Uri.UriSchemeHttps ||
+                !(parsedLink.Host.Equals("imgur.com", StringComparison.OrdinalIgnoreCase) ||
+                  parsedLink.Host.EndsWith(".imgur.com", StringComparison.OrdinalIgnoreCase)))
+                return;
 
             this.list_image_links.Items.Add(
                 new ListViewItem(new String[] { link, delete_hash })
@@ -279,7 +291,7 @@ namespace Snipping_Tool_Remastered
         {
             this.minimizeToTrayToolStripMenuItem.Text = (minimizeToTrayToolStripMenuItem.Text == "Open Window") ? "Minimize to Tray" : "Open Window";
             this.ShowInTaskbar = !ShowInTaskbar;
-            this.Opacity = Opacity < 1 ? 100 : 0;
+            this.Opacity = Opacity < 1 ? 1 : 0;
             NovaAPI.gc();
         }
 
@@ -340,7 +352,7 @@ namespace Snipping_Tool_Remastered
         {
             this.minimizeToTrayToolStripMenuItem.Text = (minimizeToTrayToolStripMenuItem.Text == "Open Window") ? "Minimize to Tray" : "Open Window";
             this.ShowInTaskbar = !ShowInTaskbar;
-            this.Opacity = Opacity < 1 ? 100 : 0;
+            this.Opacity = Opacity < 1 ? 1 : 0;
             NovaAPI.gc();
         }
 
@@ -401,7 +413,7 @@ namespace Snipping_Tool_Remastered
         {
             this.minimizeToTrayToolStripMenuItem.Text = (minimizeToTrayToolStripMenuItem.Text == "Open Window") ? "Minimize to Tray" : "Open Window";
             this.ShowInTaskbar = !ShowInTaskbar;
-            this.Opacity = Opacity < 1 ? 100 : 0;
+            this.Opacity = Opacity < 1 ? 1 : 0;
             SetWindowDisplayAffinity(this.Handle, WDA_MONITOR);
             NovaAPI.gc();
         }
