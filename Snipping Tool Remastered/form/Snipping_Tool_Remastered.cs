@@ -12,6 +12,7 @@ using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 namespace Snipping_Tool_Remastered
 {
@@ -25,12 +26,13 @@ namespace Snipping_Tool_Remastered
         Bitmap edit_screenshot(Bitmap bmp)
         {
             if (!cls_Settings.edit_screenshot)
-                return null;
+                return bmp;
 
-            var edit = new frm_Edit(bmp);
-            edit.ShowDialog();
-
-            return edit.Result;
+            using (var edit = new frm_Edit(bmp))
+            {
+                edit.ShowDialog();
+                return edit.Result;
+            }
         }
 
         private void save_screenshot(Bitmap bmp, String name = null)
@@ -67,43 +69,76 @@ namespace Snipping_Tool_Remastered
                     break;
 
                 default:
-                    this.snipper_open = false;
-                    if (snipper_open)
-                        return;
-
-                    this.snipper_open = true;
-                    var rect = frm_Snipper.get_region();
-
-                    if (rect == new Rectangle(0, 0, 0, 0))
-                        return;
-
-                    bmp = Screen_Capture.region(rect);
-                    this.snipper_open = false;
+                    if (snipper_open) return;
+                    snipper_open = true;
+                    try
+                    {
+                        Screen_Bounds.load();
+                        Rectangle rect = frm_Snipper.get_region();
+                        if (rect == Rectangle.Empty) return;
+                        bmp = Screen_Capture.region(rect, cls_Settings.show_cursor);
+                    }
+                    finally { snipper_open = false; }
                     break;
             }
-            this.work_image(bmp, true);
+            if (bmp != null)
+                this.work_image(bmp, true);
         }
 
-        private void work_image(Bitmap bmp, Boolean edit = false)
+        private async void work_image(Bitmap bmp, Boolean edit = false)
         {
+            if (bmp == null) return;
             Global_Func.play_sound("capture.wav");
-
+            Bitmap input = bmp;
             if (edit)
-                bmp = edit_screenshot(bmp);
-
-            if (bmp == null)
-                return;
-
-            if (cls_Settings.upload_method == "imgur")
-                if (!Imgur.upload(bmp))
+            {
+                Bitmap edited = edit_screenshot(input);
+                if (edited == null)
                 {
-                    Global_Func.play_sound("error.wav");
-
-                    if (cls_Settings.balloon_messages)
-                        this.balloon_tip("Error uploading file!", "Error", 2000, ToolTipIcon.Error);
+                    input.Dispose();
+                    return;
                 }
+                if (!Object.ReferenceEquals(edited, input))
+                    input.Dispose();
+                bmp = edited;
+            }
 
-            this.save_screenshot(bmp);
+            try
+            {
+                // Saving is independent of the optional network upload.
+                this.save_screenshot(bmp);
+                if (cls_Settings.upload_method == "imgur")
+                {
+                    try
+                    {
+                        this.group_upload_progress.Text = "Uploading image...";
+                        this.progress.Value = 0;
+                        Imgur.UploadResult result = await Imgur.UploadAsync(bmp);
+                        this.list_image_links.Items.Add(new ListViewItem(new[] { result.Link, result.DeleteHash ?? "" }));
+                        this.list_image_links.Items[this.list_image_links.Items.Count - 1].EnsureVisible();
+                        if (cls_Settings.copy_links_to_clipboard)
+                            Clipboard.SetText(result.Link);
+                        if (cls_Settings.balloon_messages)
+                            balloon_tip(result.Link, "Upload complete", 2000);
+                        if (cls_Settings.launch_browser)
+                            Process.Start(result.Link);
+                        Global_Func.play_sound("success.wav");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex);
+                        Global_Func.play_sound("error.wav");
+                        if (cls_Settings.balloon_messages)
+                            balloon_tip("Image upload failed.", "Upload error", 2000, ToolTipIcon.Error);
+                    }
+                    finally
+                    {
+                        this.group_upload_progress.Text = "Upload Progress";
+                        this.progress.Value = 0;
+                    }
+                }
+            }
+            finally { bmp.Dispose(); }
         }
         #endregion
 
@@ -117,19 +152,7 @@ namespace Snipping_Tool_Remastered
         public Snipping_Tool_Remastered()
         {
             InitializeComponent();
-            try
-            {
-                if (Convert.ToInt32(cls_Settings.Read("Snipping Tool", "build")) < cls_Settings.build)
-                {
-                    File.Delete(cls_Settings.exe_path);
-                    cls_Settings.Write("Snipping Tool", "build", cls_Settings.build.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Couldn't delete old Snipping Tool Remastered executable.");
-                Console.WriteLine(ex.Message);
-            }
+            // Never delete an installed executable based on mutable INI settings.
             Global_Func.app_data_folder_create();
             Global_Func.copy_files();
             if (!File.Exists(cls_Settings.ini_path))
@@ -152,9 +175,7 @@ namespace Snipping_Tool_Remastered
         {
             this.label1.Visible = false;
             this.label1.Text = Settings.Default.LaunchBrowser;
-            Imgur.web_client.UploadProgressChanged += upload_progress_changed;
-            Imgur.web_client.UploadValuesCompleted += upload_progress_complete;
-            cls_Settings.get_settings();
+cls_Settings.get_settings();
             this.tray_icon.Visible = true;
             Screen_Bounds.load();
         }
@@ -173,52 +194,7 @@ namespace Snipping_Tool_Remastered
             NovaAPI.gc();
         }
 
-        #region Progress Bar
-        private void upload_progress_changed(object sender, UploadProgressChangedEventArgs e)
-        {
-            try
-            {
-                Int32 percent = Convert.ToInt32(e.BytesSent / e.TotalBytesToSend) * 100;
-                this.group_upload_progress.Text = String.Format("Upload Progress - {0}% ({1}kb/{2}kb)", percent, e.BytesSent / 1024, e.TotalBytesToSend / 1024);
-                this.progress.Value = percent;
-                NovaAPI.gc();
-            }
-            catch
-            {
-                NovaAPI.gc();
-            }
-        }
-        private void upload_progress_complete(object sender, UploadValuesCompletedEventArgs e)
-        {
-            this.group_upload_progress.Text = "Upload Progress";
-            this.progress.Value = 0;
-            this.label1.Text = Settings.Default.LaunchBrowser;
-            this.Refresh();
-            String response = Encoding.UTF8.GetString(e.Result);
-            String delete_hash = Global_Func.get_text_inbetween(response, "deletehash\":\"", "\",\"link\"").Replace("\\", "").Replace('"',' ').Replace("name","").Replace(" ","").Replace(":","").Replace(",","");
-            String link = Global_Func.get_text_inbetween(response, "link\":\"", "\"}").Replace("\\", "");
 
-            this.list_image_links.Items.Add(
-                new ListViewItem(new String[] { link, delete_hash })
-            );
-
-            this.list_image_links.Items[list_image_links.Items.Count - 1].EnsureVisible();
-
-            if (cls_Settings.copy_links_to_clipboard)
-                Clipboard.SetText(link);
-
-            if (cls_Settings.balloon_messages)
-                this.balloon_tip(link, "Upload Complete!", 2000);
-
-            if (label1.Text == "true")
-            {
-                try { Process.Start(link); } catch { }
-                NovaAPI.gc();
-            }
-            Global_Func.play_sound("success.wav");
-            NovaAPI.gc();
-        }
-        #endregion
 
         private void btn_capture_Click(object sender, EventArgs e)
         {
@@ -279,7 +255,7 @@ namespace Snipping_Tool_Remastered
         {
             this.minimizeToTrayToolStripMenuItem.Text = (minimizeToTrayToolStripMenuItem.Text == "Open Window") ? "Minimize to Tray" : "Open Window";
             this.ShowInTaskbar = !ShowInTaskbar;
-            this.Opacity = Opacity < 1 ? 100 : 0;
+            this.Opacity = Opacity < 1 ? 1 : 0;
             NovaAPI.gc();
         }
 
@@ -340,7 +316,7 @@ namespace Snipping_Tool_Remastered
         {
             this.minimizeToTrayToolStripMenuItem.Text = (minimizeToTrayToolStripMenuItem.Text == "Open Window") ? "Minimize to Tray" : "Open Window";
             this.ShowInTaskbar = !ShowInTaskbar;
-            this.Opacity = Opacity < 1 ? 100 : 0;
+            this.Opacity = Opacity < 1 ? 1 : 0;
             NovaAPI.gc();
         }
 
@@ -381,12 +357,12 @@ namespace Snipping_Tool_Remastered
             NovaAPI.gc();
         }
 
-        private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
+        private async void deleteToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (list_image_links.SelectedItems.Count <= 0)
                 return;
 
-            if (Imgur.delete(list_image_links.SelectedItems[0].SubItems[1].Text))
+            if (await Imgur.DeleteAsync(list_image_links.SelectedItems[0].SubItems[1].Text))
                 this.list_image_links.SelectedItems[0].Remove();
             else
             {
@@ -401,7 +377,7 @@ namespace Snipping_Tool_Remastered
         {
             this.minimizeToTrayToolStripMenuItem.Text = (minimizeToTrayToolStripMenuItem.Text == "Open Window") ? "Minimize to Tray" : "Open Window";
             this.ShowInTaskbar = !ShowInTaskbar;
-            this.Opacity = Opacity < 1 ? 100 : 0;
+            this.Opacity = Opacity < 1 ? 1 : 0;
             SetWindowDisplayAffinity(this.Handle, WDA_MONITOR);
             NovaAPI.gc();
         }

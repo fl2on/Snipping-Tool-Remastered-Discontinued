@@ -14,17 +14,18 @@ namespace Snipping_Tool_Remastered
     {
         public static Rectangle get_region()
         {
-            var snipper = new frm_Snipper();
-
-            if (snipper.ShowDialog() == DialogResult.OK)
-                return snipper.rect;
-
-            return new Rectangle(0, 0, 0, 0);
+            using (var snipper = new frm_Snipper())
+            {
+                if (snipper.ShowDialog() == DialogResult.OK)
+                    return snipper.rect;
+                return Rectangle.Empty;
+            }
         }
 
         public frm_Snipper()
         {
             InitializeComponent();
+            this.AutoScaleMode = AutoScaleMode.None;
             this.TopMost = true;
             this.ShowInTaskbar = false;
             this.DoubleBuffered = true;
@@ -35,7 +36,7 @@ namespace Snipping_Tool_Remastered
             this.BackColor = Color.White;
             this.Opacity = 0.70;
             this.Location = new Point(Screen_Bounds.bounds.Left, Screen_Bounds.bounds.Top);
-            this.Size = new Size(Screen_Bounds.bounds.Width, Screen_Bounds.bounds.Height);
+            this.ClientSize = Screen_Bounds.bounds.Size;
             NovaAPI.gc();
         }
 
@@ -86,8 +87,15 @@ namespace Snipping_Tool_Remastered
             NovaAPI.gc();
         }
 
-        Brush brush = new SolidBrush(Color.Black);
-        Pen pen = new Pen(Color.Red);
+        readonly Brush brush = new SolidBrush(Color.Black);
+        readonly Pen pen = new Pen(Color.Red);
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            brush.Dispose();
+            pen.Dispose();
+            base.OnFormClosed(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
