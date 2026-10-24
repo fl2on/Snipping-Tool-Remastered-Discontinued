@@ -12,6 +12,7 @@ using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 namespace Snipping_Tool_Remastered
 {
@@ -81,32 +82,63 @@ namespace Snipping_Tool_Remastered
                     break;
             }
             if (bmp != null)
-            {
-                using (bmp)
-                    this.work_image(bmp, true);
-            }
+                this.work_image(bmp, true);
         }
 
-        private void work_image(Bitmap bmp, Boolean edit = false)
+        private async void work_image(Bitmap bmp, Boolean edit = false)
         {
+            if (bmp == null) return;
             Global_Func.play_sound("capture.wav");
-
+            Bitmap input = bmp;
             if (edit)
-                bmp = edit_screenshot(bmp);
-
-            if (bmp == null)
-                return;
-
-            if (cls_Settings.upload_method == "imgur")
-                if (!Imgur.upload(bmp))
+            {
+                Bitmap edited = edit_screenshot(input);
+                if (edited == null)
                 {
-                    Global_Func.play_sound("error.wav");
-
-                    if (cls_Settings.balloon_messages)
-                        this.balloon_tip("Error uploading file!", "Error", 2000, ToolTipIcon.Error);
+                    input.Dispose();
+                    return;
                 }
+                if (!Object.ReferenceEquals(edited, input))
+                    input.Dispose();
+                bmp = edited;
+            }
 
+            // Saving is independent of the optional network upload.
             this.save_screenshot(bmp);
+            if (cls_Settings.upload_method == "imgur")
+            {
+                try
+                {
+                    using (var copy = new Bitmap(bmp))
+                    {
+                        this.group_upload_progress.Text = "Uploading image...";
+                        this.progress.Value = 0;
+                        Imgur.UploadResult result = await Imgur.UploadAsync(copy);
+                        this.list_image_links.Items.Add(new ListViewItem(new[] { result.Link, result.DeleteHash ?? "" }));
+                        this.list_image_links.Items[this.list_image_links.Items.Count - 1].EnsureVisible();
+                        if (cls_Settings.copy_links_to_clipboard)
+                            Clipboard.SetText(result.Link);
+                        if (cls_Settings.balloon_messages)
+                            balloon_tip(result.Link, "Upload complete", 2000);
+                        if (cls_Settings.launch_browser)
+                            Process.Start(result.Link);
+                        Global_Func.play_sound("success.wav");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                    Global_Func.play_sound("error.wav");
+                    if (cls_Settings.balloon_messages)
+                        balloon_tip("Image upload failed.", "Upload error", 2000, ToolTipIcon.Error);
+                }
+                finally
+                {
+                    this.group_upload_progress.Text = "Upload Progress";
+                    this.progress.Value = 0;
+                }
+            }
+            bmp.Dispose();
         }
         #endregion
 
@@ -143,9 +175,7 @@ namespace Snipping_Tool_Remastered
         {
             this.label1.Visible = false;
             this.label1.Text = Settings.Default.LaunchBrowser;
-            Imgur.web_client.UploadProgressChanged += upload_progress_changed;
-            Imgur.web_client.UploadValuesCompleted += upload_progress_complete;
-            cls_Settings.get_settings();
+cls_Settings.get_settings();
             this.tray_icon.Visible = true;
             Screen_Bounds.load();
         }
@@ -164,73 +194,7 @@ namespace Snipping_Tool_Remastered
             NovaAPI.gc();
         }
 
-        #region Progress Bar
-        private void upload_progress_changed(object sender, UploadProgressChangedEventArgs e)
-        {
-            try
-            {
-                Int32 percent = e.TotalBytesToSend > 0 ? (int)Math.Max(0, Math.Min(100, e.BytesSent * 100L / e.TotalBytesToSend)) : 0;
-                this.group_upload_progress.Text = String.Format("Upload Progress - {0}% ({1}kb/{2}kb)", percent, e.BytesSent / 1024, e.TotalBytesToSend / 1024);
-                this.progress.Value = percent;
-                NovaAPI.gc();
-            }
-            catch
-            {
-                NovaAPI.gc();
-            }
-        }
-        private void upload_progress_complete(object sender, UploadValuesCompletedEventArgs e)
-        {
-            this.group_upload_progress.Text = "Upload Progress";
-            this.progress.Value = 0;
-            this.label1.Text = Settings.Default.LaunchBrowser;
-            this.Refresh();
-            if (e.Cancelled || e.Error != null)
-            {
-                if (cls_Settings.balloon_messages)
-                    balloon_tip("Image upload failed.", "Upload error", 2000, ToolTipIcon.Error);
-                return;
-            }
-            if (e.Cancelled || e.Error != null)
-            {
-                if (cls_Settings.balloon_messages)
-                    balloon_tip("Upload failed.", "Upload error", 2000, ToolTipIcon.Error);
-                return;
-            }
-            String response = Encoding.UTF8.GetString(e.Result);
-            dynamic responseObject = Newtonsoft.Json.JsonConvert.DeserializeObject(response);
-            if (responseObject == null || responseObject.success != true || responseObject.data == null)
-                return;
-            String delete_hash = (string)responseObject.data.deletehash;
-            String link = (string)responseObject.data.link;
-            Uri parsedLink;
-            if (!Uri.TryCreate(link, UriKind.Absolute, out parsedLink) ||
-                parsedLink.Scheme != Uri.UriSchemeHttps ||
-                !(parsedLink.Host.Equals("imgur.com", StringComparison.OrdinalIgnoreCase) ||
-                  parsedLink.Host.EndsWith(".imgur.com", StringComparison.OrdinalIgnoreCase)))
-                return;
 
-            this.list_image_links.Items.Add(
-                new ListViewItem(new String[] { link, delete_hash })
-            );
-
-            this.list_image_links.Items[list_image_links.Items.Count - 1].EnsureVisible();
-
-            if (cls_Settings.copy_links_to_clipboard)
-                Clipboard.SetText(link);
-
-            if (cls_Settings.balloon_messages)
-                this.balloon_tip(link, "Upload Complete!", 2000);
-
-            if (label1.Text == "true")
-            {
-                try { Process.Start(link); } catch { }
-                NovaAPI.gc();
-            }
-            Global_Func.play_sound("success.wav");
-            NovaAPI.gc();
-        }
-        #endregion
 
         private void btn_capture_Click(object sender, EventArgs e)
         {
@@ -393,12 +357,12 @@ namespace Snipping_Tool_Remastered
             NovaAPI.gc();
         }
 
-        private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
+        private async void deleteToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (list_image_links.SelectedItems.Count <= 0)
                 return;
 
-            if (Imgur.delete(list_image_links.SelectedItems[0].SubItems[1].Text))
+            if (await Imgur.DeleteAsync(list_image_links.SelectedItems[0].SubItems[1].Text))
                 this.list_image_links.SelectedItems[0].Remove();
             else
             {
